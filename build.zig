@@ -1,44 +1,88 @@
 const std = @import("std");
-const freetype = @import("mach-freetype/build.zig");
+
+pub fn pkg(comptime freetype: anytype) std.build.Pkg {
+    return .{
+        .name = "fontconfig",
+        .source = .{ .path = comptime thisDir() ++ "/src/main.zig" },
+        .dependencies = comptime &.{freetype.pkg},
+    };
+}
+
+pub fn link(b: *std.build.Builder, step: *std.build.LibExeObjStep) void {
+    linkExpat(step);
+
+    step.defineCMacro("FLEXIBLE_ARRAY_MEMBER", ""); // We target C99 so always have FAMs
+    step.defineCMacro("HAVE_CONFIG_H", "1");
+
+    defineHaveMacros(step) catch unreachable;
+    defineSizesAligns(b, step) catch unreachable;
+    defineConfigMacros(step) catch unreachable;
+
+    step.addCSourceFiles(sources, cflags);
+    step.addIncludePath(comptime thisDir() ++ "/generated");
+    step.addIncludePath(comptime thisDir() ++ "/generated/src");
+    step.addIncludePath(comptime thisDir() ++ "/fontconfig");
+}
+
+fn linkExpat(lib: *std.build.LibExeObjStep) void {
+    if (lib.target.getOsTag() != .windows) {
+        lib.defineCMacro("XML_DEV_URANDOM", "1");
+    }
+
+    lib.addCSourceFiles(expat_sources, cflags);
+    lib.addIncludePath(comptime thisDir() ++ "/libexpat/expat/lib");
+}
+
+const fc_root = thisDir() ++ "/fontconfig";
+const expat_root = thisDir() ++ "/libexpat";
 
 const sources = &[_][]const u8{
-    "fontconfig/src/fcarch.c",
-    "fontconfig/src/fcatomic.c",
-    "fontconfig/src/fccache.c",
-    "fontconfig/src/fccfg.c",
-    "fontconfig/src/fccharset.c",
-    "fontconfig/src/fccompat.c",
-    "fontconfig/src/fcdbg.c",
-    "fontconfig/src/fcdefault.c",
-    "fontconfig/src/fcdir.c",
-    "fontconfig/src/fcformat.c",
-    "fontconfig/src/fcfreetype.c",
-    "fontconfig/src/fcfs.c",
-    "fontconfig/src/fchash.c",
-    "fontconfig/src/fcinit.c",
-    "fontconfig/src/fclang.c",
-    "fontconfig/src/fclist.c",
-    "fontconfig/src/fcmatch.c",
-    "fontconfig/src/fcmatrix.c",
-    "fontconfig/src/fcname.c",
-    "fontconfig/src/fcobjs.c",
-    "fontconfig/src/fcpat.c",
-    "fontconfig/src/fcptrlist.c",
-    "fontconfig/src/fcrange.c",
-    "fontconfig/src/fcserialize.c",
-    "fontconfig/src/fcstat.c",
-    "fontconfig/src/fcstr.c",
-    "fontconfig/src/fcweight.c",
-    "fontconfig/src/fcxml.c",
-    "fontconfig/src/ftglue.c",
+    fc_root ++ "/src/fcatomic.c",
+    fc_root ++ "/src/fccache.c",
+    fc_root ++ "/src/fccfg.c",
+    fc_root ++ "/src/fccharset.c",
+    fc_root ++ "/src/fccompat.c",
+    fc_root ++ "/src/fcdbg.c",
+    fc_root ++ "/src/fcdefault.c",
+    fc_root ++ "/src/fcdir.c",
+    fc_root ++ "/src/fcformat.c",
+    fc_root ++ "/src/fcfreetype.c",
+    fc_root ++ "/src/fcfs.c",
+    fc_root ++ "/src/fchash.c",
+    fc_root ++ "/src/fcinit.c",
+    fc_root ++ "/src/fclang.c",
+    fc_root ++ "/src/fclist.c",
+    fc_root ++ "/src/fcmatch.c",
+    fc_root ++ "/src/fcmatrix.c",
+    fc_root ++ "/src/fcname.c",
+    fc_root ++ "/src/fcobjs.c",
+    fc_root ++ "/src/fcpat.c",
+    fc_root ++ "/src/fcptrlist.c",
+    fc_root ++ "/src/fcrange.c",
+    fc_root ++ "/src/fcserialize.c",
+    fc_root ++ "/src/fcstat.c",
+    fc_root ++ "/src/fcstr.c",
+    fc_root ++ "/src/fcweight.c",
+    fc_root ++ "/src/fcxml.c",
+    fc_root ++ "/src/ftglue.c",
 };
 
 const expat_sources = &[_][]const u8{
-    "libexpat/expat/lib/xmlparse.c",
-    "libexpat/expat/lib/xmlrole.c",
-    "libexpat/expat/lib/xmltok.c",
-    "libexpat/expat/lib/xmltok_impl.c",
-    "libexpat/expat/lib/xmltok_ns.c",
+    expat_root ++ "/expat/lib/xmlparse.c",
+    expat_root ++ "/expat/lib/xmlrole.c",
+    expat_root ++ "/expat/lib/xmltok.c",
+    expat_root ++ "/expat/lib/xmltok_impl.c",
+    expat_root ++ "/expat/lib/xmltok_ns.c",
+};
+
+// There are two issues that mean we need to use these flags. Firstly, there's some UB
+// somewhere in fontconfig that I haven't tracked down, so ubsan sometimes hits an
+// illegal instruction - but with LTO, we can't disable ubsan just for these comp units,
+// so we need to disable LTO. Also, there's currently a bug in mingw-w64 which causes
+// rand_s to not be exposed in LTO builds (a patch has been submitted to upstream).
+const cflags = &[_][]const u8{
+    "-fno-lto",
+    "-fno-sanitize=undefined",
 };
 
 const Platform = struct {
@@ -155,23 +199,25 @@ fn defineSizesAligns(b: *std.build.Builder, lib: *std.build.LibExeObjStep) !void
 }
 
 const linux_default_fonts: []const u8 =
-    "\\t<dir>/usr/share/fonts</dir>\\n" ++
-    "\\t<dir>/usr/local/share/fonts</dir>\\n";
+    "<dir>/usr/share/fonts</dir>" ++
+    "<dir>/usr/local/share/fonts</dir>";
 
 const macos_default_fonts: []const u8 =
-    "\\t<dir>/System/Library/Fonts</dir>\\n" ++
-    "\\t<dir>/Library/Fonts</dir>\\n" ++
-    "\\t<dir>~/Library/Fonts</dir>\\n" ++
-    "\\t<dir>/System/Library/Assets/com_apple_MobileAsset_Font3</dir>\\n" ++
-    "\\t<dir>/System/Library/Assets/com_apple_MobileAsset_Font4</dir>\\n";
+    "<dir>/System/Library/Fonts</dir>" ++
+    "<dir>/Library/Fonts</dir>" ++
+    "<dir>~/Library/Fonts</dir>" ++
+    "<dir>/System/Library/Assets/com_apple_MobileAsset_Font3</dir>" ++
+    "<dir>/System/Library/Assets/com_apple_MobileAsset_Font4</dir>";
 
 const windows_default_fonts: []const u8 =
-    "\\t<dir>WINDOWSFONTDIR</dir>\\n" ++
-    "\\t<dir>WINDOWSUSERFONTDIR</dir>\\n";
+    "<dir>WINDOWSFONTDIR</dir>" ++
+    "<dir>WINDOWSUSERFONTDIR</dir>";
 
 fn defineConfigMacros(lib: *std.build.LibExeObjStep) !void {
     lib.defineCMacro("FC_GPERF_SIZE_T", "size_t");
     lib.defineCMacro("FC_FONTPATH", "");
+    lib.defineCMacro("_GNU_SOURCE", "");
+    lib.defineCMacro("GETTEXT_PACKAGE", "\"fontconfig\"");
 
     switch (lib.target.getOsTag()) {
         .linux => {
@@ -202,41 +248,6 @@ fn defineConfigMacros(lib: *std.build.LibExeObjStep) !void {
     }
 }
 
-fn linkExpat(lib: *std.build.LibExeObjStep) void {
-    if (lib.target.getOsTag() != .windows) {
-        lib.defineCMacro("XML_DEV_URANDOM", "1");
-    }
-
-    lib.addCSourceFiles(expat_sources, &.{});
-    lib.addIncludePath("libexpat/expat/lib");
-}
-
-pub fn build(b: *std.build.Builder) !void {
-    const mode = b.standardReleaseOptions();
-    const target = b.standardTargetOptions(.{});
-
-    const lib = b.addStaticLibrary("zig-fontconfig", "src/main.zig");
-    lib.setBuildMode(mode);
-    lib.setTarget(target);
-    lib.linkLibC();
-    freetype.link(b, lib, .{});
-    linkExpat(lib);
-
-    lib.defineCMacro("FLEXIBLE_ARRAY_MEMBER", ""); // We target C99 so always have FAMs
-    lib.defineCMacro("HAVE_CONFIG_H", "1");
-    try defineHaveMacros(lib);
-    try defineSizesAligns(b, lib);
-    try defineConfigMacros(lib);
-
-    lib.addCSourceFiles(sources, &.{});
-    lib.addIncludePath("generated");
-    lib.addIncludePath("generated/src");
-    lib.addIncludePath("fontconfig");
-    lib.install();
-
-    const main_tests = b.addTest("src/main.zig");
-    main_tests.setBuildMode(mode);
-
-    const test_step = b.step("test", "Run library tests");
-    test_step.dependOn(&main_tests.step);
+fn thisDir() []const u8 {
+    return std.fs.path.dirname(@src().file) orelse ".";
 }

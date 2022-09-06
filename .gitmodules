@@ -1,9 +1,6 @@
 [submodule "fontconfig"]
 	path = fontconfig
 	url = https://gitlab.freedesktop.org/fontconfig/fontconfig.git
-[submodule "mach-freetype"]
-	path = mach-freetype
-	url = https://github.com/hexops/mach-freetype
 [submodule "libexpat"]
 	path = libexpat
 	url = https://github.com/libexpat/libexpat
