@@ -11,7 +11,7 @@ pub const FontConfig = opaque {
     }
 
     fn ptr(config: *FontConfig) *c.FcConfig {
-        return @ptrCast(*c.FcConfig, config);
+        return @ptrCast(*c.FcConfig, @alignCast(@alignOf(c.FcConfig), config));
     }
 
     pub fn init() !*FontConfig {
@@ -250,7 +250,7 @@ pub const Pattern = opaque {
     }
 
     fn ptr(pattern: *Pattern) *c.FcPattern {
-        return @ptrCast(*c.FcPattern, pattern);
+        return @ptrCast(*c.FcPattern, @alignCast(@alignOf(c.FcPattern), pattern));
     }
 
     pub fn init() !*Pattern {
@@ -333,7 +333,7 @@ pub const ObjectSet = opaque {
     }
 
     fn ptr(obj_set: *ObjectSet) *c.FcObjectSet {
-        return @ptrCast(*c.FcObjectSet, obj_set);
+        return @ptrCast(*c.FcObjectSet, @alignCast(@alignOf(c.FcObjectSet), obj_set));
     }
 
     pub fn build(comptime props: []const Property) !*ObjectSet {
@@ -363,7 +363,7 @@ pub const FontSet = opaque {
     }
 
     fn ptr(font_set: *FontSet) *c.FcFontSet {
-        return @ptrCast(*c.FcFontSet, font_set);
+        return @ptrCast(*c.FcFontSet, @alignCast(@alignOf(c.FcFontSet), font_set));
     }
 
     pub fn deinit(font_set: *FontSet) void {
