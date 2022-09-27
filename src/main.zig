@@ -282,8 +282,23 @@ pub const Pattern = opaque {
     }
 
     pub fn getProperty(pattern: *Pattern, comptime prop: Property, id: c_int) !prop.Type() {
-        var val: c.FcValue = undefined;
-        switch (c.FcPatternGet(pattern.ptr(), prop.name(), id, &val)) {
+        const FcValue = extern struct {
+            type: c.FcType,
+            u: extern union {
+                s: [*:0]const u8,
+                i: c_int,
+                b: c.FcBool,
+                d: f64 align(4), // ziglang/zig#12987
+                m: *const c.FcMatrix,
+                c: *const c.FcCharSet,
+                f: *anyopaque,
+                l: *const c.FcLangSet,
+                r: *const c.FcRange,
+            },
+        };
+
+        var val: FcValue align(8) = undefined; // ziglang/zig#12987
+        switch (c.FcPatternGet(pattern.ptr(), prop.name(), id, @ptrCast(*c.FcValue, &val))) {
             c.FcResultMatch => {},
             c.FcResultNoMatch => return error.NoSuchProperty,
             c.FcResultNoId => return error.NoSuchId,

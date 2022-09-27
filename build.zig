@@ -22,6 +22,11 @@ pub fn link(b: *std.build.Builder, step: *std.build.LibExeObjStep) void {
     step.addIncludePath(comptime thisDir() ++ "/generated");
     step.addIncludePath(comptime thisDir() ++ "/generated/src");
     step.addIncludePath(comptime thisDir() ++ "/fontconfig");
+
+    if (step.target.getOsTag() != .windows) {
+        step.defineCMacro("HAVE_PTHREAD", "1");
+        step.linkSystemLibrary("pthread");
+    }
 }
 
 fn linkExpat(lib: *std.build.LibExeObjStep) void {

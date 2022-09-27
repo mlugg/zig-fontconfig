@@ -58,7 +58,7 @@ cd ..
 
 # src
 cd src
-clang -E -P -I .. fcobjshash.gperf.h | sed '/CUT_OUT_BEGIN.*/,/CUT_OUT_END/d; s/^ *//; /^$/d' >../../generated/src/fcobjshash.gperf
+clang -E -P -I .. fcobjshash.gperf.h | sed '/CUT_OUT_BEGIN/,/CUT_OUT_END/d; s/^ \+//; /^$/d' >../../generated/src/fcobjshash.gperf
 gperf --pic -m 100 ../../generated/src/fcobjshash.gperf --output-file ../../generated/src/fcobjshash.h
 cd ..
 
