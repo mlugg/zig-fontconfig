@@ -220,7 +220,7 @@ const windows_default_fonts: []const u8 =
 
 fn defineConfigMacros(lib: *std.build.LibExeObjStep) !void {
     lib.defineCMacro("FC_GPERF_SIZE_T", "size_t");
-    lib.defineCMacro("FC_FONTPATH", "");
+    lib.defineCMacro("FC_FONTPATH", "\"\"");
     lib.defineCMacro("_GNU_SOURCE", "");
     lib.defineCMacro("GETTEXT_PACKAGE", "\"fontconfig\"");
 
