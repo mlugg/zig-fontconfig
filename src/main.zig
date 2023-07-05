@@ -7,11 +7,11 @@ const c = @cImport({
 
 pub const FontConfig = opaque {
     fn make(config: *c.FcConfig) *FontConfig {
-        return @ptrCast(*FontConfig, config);
+        return @ptrCast(config);
     }
 
     fn ptr(config: *FontConfig) *c.FcConfig {
-        return @ptrCast(*c.FcConfig, @alignCast(@alignOf(c.FcConfig), config));
+        return @ptrCast(@alignCast(config));
     }
 
     pub fn init() !*FontConfig {
@@ -137,22 +137,22 @@ pub const Property = enum {
 
     pub fn Type(comptime p: Property) type {
         return switch (p) {
-            .family => []const u8,
-            .style => []const u8,
+            .family => [:0]const u8,
+            .style => [:0]const u8,
             .slant => c_int,
             .weight => Range,
             .size => Range,
             .aspect => f64,
             .pixel_size => f64,
             .spacing => c_int,
-            .foundry => []const u8,
+            .foundry => [:0]const u8,
             .antialias => bool,
             .hinting => bool,
             .hint_style => c_int,
             .vertical_layout => bool,
             .autohint => bool,
             .width => Range,
-            .file => []const u8,
+            .file => [:0]const u8,
             .index => c_int,
             .ft_face => freetype.Face,
             .outline => bool,
@@ -166,21 +166,21 @@ pub const Property = enum {
             .charset => c_int, // TODO: CharSet
             .lang => c_int, // TODO: LangSet
             .fontversion => c_int,
-            .fullname => []const u8,
-            .familylang => []const u8,
-            .stylelang => []const u8,
-            .fullnamelang => []const u8,
-            .capability => []const u8,
-            .fontformat => []const u8,
+            .fullname => [:0]const u8,
+            .familylang => [:0]const u8,
+            .stylelang => [:0]const u8,
+            .fullnamelang => [:0]const u8,
+            .capability => [:0]const u8,
+            .fontformat => [:0]const u8,
             .embolden => bool,
             .embedded_bitmap => bool,
             .decorative => bool,
             .lcd_filter => c_int,
-            .font_features => []const u8,
-            .font_variations => []const u8,
-            .namelang => []const u8,
-            .prgname => []const u8,
-            .postscript_name => []const u8,
+            .font_features => [:0]const u8,
+            .font_variations => [:0]const u8,
+            .namelang => [:0]const u8,
+            .prgname => [:0]const u8,
+            .postscript_name => [:0]const u8,
             .font_has_hint => bool,
             .order => c_int,
             .char_width => c_int,
@@ -246,11 +246,11 @@ pub const Property = enum {
 
 pub const Pattern = opaque {
     fn make(pattern: *c.FcPattern) *Pattern {
-        return @ptrCast(*Pattern, pattern);
+        return @ptrCast(pattern);
     }
 
     fn ptr(pattern: *Pattern) *c.FcPattern {
-        return @ptrCast(*c.FcPattern, @alignCast(@alignOf(c.FcPattern), pattern));
+        return @ptrCast(@alignCast(pattern));
     }
 
     pub fn init() !*Pattern {
@@ -298,7 +298,7 @@ pub const Pattern = opaque {
         };
 
         var val: FcValue align(8) = undefined; // ziglang/zig#12987
-        switch (c.FcPatternGet(pattern.ptr(), prop.name(), id, @ptrCast(*c.FcValue, &val))) {
+        switch (c.FcPatternGet(pattern.ptr(), prop.name(), id, @ptrCast(&val))) {
             c.FcResultMatch => {},
             c.FcResultNoMatch => return error.NoSuchProperty,
             c.FcResultNoId => return error.NoSuchId,
@@ -314,9 +314,9 @@ pub const Pattern = opaque {
                 std.debug.assert(val.type == c.FcTypeDouble);
                 return val.u.d;
             },
-            []const u8 => {
+            [:0]const u8 => {
                 std.debug.assert(val.type == c.FcTypeString);
-                return std.mem.span(@ptrCast([*:0]const u8, val.u.s));
+                return std.mem.span(@as([*:0]const u8, @ptrCast(val.u.s)));
             },
             bool => {
                 std.debug.assert(val.type == c.FcTypeBool);
@@ -324,11 +324,10 @@ pub const Pattern = opaque {
             },
             freetype.Face => {
                 std.debug.assert(val.type == c.FcTypeFTFace);
-                const FT_Face = std.meta.fields(freetype.Face)[0].field_type;
-                return freetype.Face{ .handle = @ptrCast(FT_Face, val.u.f) };
+                return .{ .handle = @ptrCast(val.u.f) };
             },
             Range => return switch (val.type) {
-                c.FcTypeInteger => Range.single(@intToFloat(f64, val.u.i)),
+                c.FcTypeInteger => Range.single(@floatFromInt(val.u.i)),
                 c.FcTypeDouble => Range.single(val.u.d),
                 c.FcTypeRange => Range.fromFcRange(val.u.r.?),
                 else => unreachable,
@@ -344,24 +343,24 @@ pub const Pattern = opaque {
 
 pub const ObjectSet = opaque {
     fn make(obj_set: *c.FcObjectSet) *ObjectSet {
-        return @ptrCast(*ObjectSet, obj_set);
+        return @ptrCast(obj_set);
     }
 
     fn ptr(obj_set: *ObjectSet) *c.FcObjectSet {
-        return @ptrCast(*c.FcObjectSet, @alignCast(@alignOf(c.FcObjectSet), obj_set));
+        return @ptrCast(@alignCast(obj_set));
     }
 
     pub fn build(comptime props: []const Property) !*ObjectSet {
         const types = [1]type{?[*:0]const u8} ** (props.len + 1);
 
         var tuple: std.meta.Tuple(&types) = undefined;
-        inline for (props) |prop, i| {
+        inline for (props, 0..) |prop, i| {
             tuple[i] = prop.name();
         }
 
         tuple[props.len] = null;
 
-        return if (@call(.{}, c.FcObjectSetBuild, tuple)) |obj_set|
+        return if (@call(.auto, c.FcObjectSetBuild, tuple)) |obj_set|
             ObjectSet.make(obj_set)
         else
             error.ObjectSetInitError;
@@ -374,11 +373,11 @@ pub const ObjectSet = opaque {
 
 pub const FontSet = opaque {
     fn make(font_set: *c.FcFontSet) *FontSet {
-        return @ptrCast(*FontSet, font_set);
+        return @ptrCast(font_set);
     }
 
     fn ptr(font_set: *FontSet) *c.FcFontSet {
-        return @ptrCast(*c.FcFontSet, @alignCast(@alignOf(c.FcFontSet), font_set));
+        return @ptrCast(@alignCast(font_set));
     }
 
     pub fn deinit(font_set: *FontSet) void {
@@ -386,7 +385,7 @@ pub const FontSet = opaque {
     }
 
     pub fn fonts(font_set: *FontSet) []*Pattern {
-        const pats: []?*c.FcPattern = font_set.ptr().fonts[0..@intCast(usize, font_set.ptr().nfont)];
-        return @ptrCast([]*Pattern, pats);
+        const pats: []?*c.FcPattern = font_set.ptr().fonts[0..@intCast(font_set.ptr().nfont)];
+        return @ptrCast(pats);
     }
 };

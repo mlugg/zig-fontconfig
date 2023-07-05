@@ -1,14 +1,15 @@
 const std = @import("std");
 
-pub fn pkg(comptime freetype: anytype) std.build.Pkg {
-    return .{
-        .name = "fontconfig",
-        .source = .{ .path = comptime thisDir() ++ "/src/main.zig" },
-        .dependencies = comptime &.{freetype.pkg},
-    };
+pub fn module(b: *std.Build, comptime freetype: anytype) *std.Build.Module {
+    return b.createModule(.{
+        .source_file = .{ .path = comptime thisDir() ++ "/src/main.zig" },
+        .dependencies = &.{
+            .{ .name = "freetype", .module = freetype.module(b) },
+        },
+    });
 }
 
-pub fn link(b: *std.build.Builder, step: *std.build.LibExeObjStep) void {
+pub fn link(b: *std.Build, step: *std.Build.Step.Compile) void {
     linkExpat(step);
 
     step.defineCMacro("FLEXIBLE_ARRAY_MEMBER", ""); // We target C99 so always have FAMs
@@ -196,7 +197,8 @@ fn defineHaveMacros(lib: *std.build.LibExeObjStep) !void {
 }
 
 fn defineSizesAligns(b: *std.build.Builder, lib: *std.build.LibExeObjStep) !void {
-    const ptr_size = @divExact(lib.target.getCpuArch().ptrBitWidth(), 8);
+    const target_info = std.zig.system.NativeTargetInfo.detect(lib.target) catch unreachable;
+    const ptr_size = @divExact(target_info.target.ptrBitWidth(), 8);
     const ptr_size_str = try std.fmt.allocPrint(b.allocator, "{}", .{ptr_size});
     lib.defineCMacro("SIZEOF_VOID_P", ptr_size_str);
     lib.defineCMacro("ALIGNOF_VOID_P", ptr_size_str);
